@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <!--配置开启自动匹配驼峰-->
+    <settings>
+        <setting name="mapUnderscoreToCamelCase" value="true"/>
+    </settings>
+    <!--配置PageHelper分页插件拦截器-->
+    <plugins>
+        <plugin interceptor="com.github.pagehelper.PageInterceptor">
+            <!--            <property name="offsetAsPageNum" value="true"/>-->
+            <!--            <property name="helperDialect" value="mysql"/>-->
+            <property name="helperDialect" value="mysql"/>
+            <!--            <property name="rowBoundsWithCount" value="true"/>-->
+            <property name="reasonable" value="false"/>
+        </plugin>
+    </plugins>
+</configuration>
