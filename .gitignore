@@ -1,4 +1,7 @@
 # IDEA
+.idea
+target
+/target
 /.idea/
 /target/
 
