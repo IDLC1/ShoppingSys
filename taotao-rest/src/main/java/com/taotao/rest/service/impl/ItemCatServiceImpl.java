@@ -1,15 +1,23 @@
 package com.taotao.rest.service.impl;
 
+import com.taotao.common.utils.JsonUtils;
 import com.taotao.mapper.TbItemCatMapper;
+import com.taotao.pojo.TbItem;
 import com.taotao.pojo.TbItemCat;
 import com.taotao.pojo.TbItemCatExample;
+import com.taotao.rest.dao.JedisClient;
 import com.taotao.rest.pojo.CatNode;
 import com.taotao.rest.pojo.CatResult;
 import com.taotao.rest.service.ItemCatService;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -18,13 +26,45 @@ import java.util.List;
 @Service
 public class ItemCatServiceImpl implements ItemCatService {
 
+    public static final Logger Log = LoggerFactory.getLogger(ItemCatServiceImpl.class);
+
+    @Value("${REDIS_ITEM_CAT_LIST_KEY}")
+    private String REDIS_ITEM_CAT_LIST_KEY;
+
     @Autowired
     private TbItemCatMapper tbItemCatMapper;
+
+    @Autowired
+    private JedisClient jedisClient;
 
     @Override
     public CatResult getItemCatList() {
         CatResult catResult = new CatResult();
-        catResult.setData(getCatList(0));
+        Date date = new Date();
+
+        long startTime=System.currentTimeMillis();
+        Log.info("startTime = " + startTime);
+
+        List<TbItem> lists = new ArrayList<>();
+        try {
+            String itemList = jedisClient.get("itemList");
+            if (!StringUtils.isBlank(itemList)) {
+                lists = JsonUtils.jsonToList(itemList, TbItem.class);
+            } else {
+                lists = (List<TbItem>) getCatList(0);
+                // 将商品类目列表记录进redis中
+                String strList = JsonUtils.objectToJson(lists);
+                jedisClient.set("itemList",strList);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        long endTime=System.currentTimeMillis();
+        Log.info("endTime = " + endTime);
+        Log.info("程序运行时间 = " + (endTime-startTime)+"ms");
+
+        catResult.setData(lists);
         return catResult;
     }
 
@@ -34,20 +74,36 @@ public class ItemCatServiceImpl implements ItemCatService {
      * @return
      */
     private List<?> getCatList(long parentId) {
-        // 创建查询条件
-        TbItemCatExample example = new TbItemCatExample();
-        TbItemCatExample.Criteria criteria = example.createCriteria();
-        criteria.andParentIdEqualTo(parentId);
-        // 执行查询
-        // 先取出父节点是 parentId 的节点
-        List<TbItemCat> lists = tbItemCatMapper.selectByExample(example);
+        List<TbItemCat> lists = new ArrayList<>();
+        // 先尝试从redis中取出
+        try {
+            String itemList = jedisClient.hget(REDIS_ITEM_CAT_LIST_KEY, parentId+"");
+            if (!StringUtils.isBlank(itemList)) {
+                lists = JsonUtils.jsonToList(itemList, TbItemCat.class);
+            } else {
+                // 若不存在于缓存中，则从数据库中取出
+                // 创建查询条件
+                TbItemCatExample example = new TbItemCatExample();
+                TbItemCatExample.Criteria criteria = example.createCriteria();
+                criteria.andParentIdEqualTo(parentId);
+                // 执行查询
+                // 先取出父节点是 parentId 的节点
+                lists = tbItemCatMapper.selectByExample(example);
+
+                // 将商品类目列表记录进redis中
+                String strList = JsonUtils.objectToJson(lists);
+                jedisClient.hset(REDIS_ITEM_CAT_LIST_KEY, parentId+"",strList);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         List resultList = new ArrayList<>();
         // 由于界面显示，只显示14个parentId == 0
         int count = 0;
         // 循环构造成需要的格式
         for (TbItemCat tbItemCat : lists) {
             CatNode catNode = new CatNode();
-
             // 判断是否为父节点
             if(tbItemCat.getIsParent()) {
                 if(parentId == 0) {
@@ -67,7 +123,6 @@ public class ItemCatServiceImpl implements ItemCatService {
             } else {
                 resultList.add("/products/" + tbItemCat.getId() + ".html|" + tbItemCat.getName());
             }
-
         }
         return resultList;
     }
