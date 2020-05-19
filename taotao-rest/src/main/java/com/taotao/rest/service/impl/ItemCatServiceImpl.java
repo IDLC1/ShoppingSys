@@ -6,6 +6,7 @@ import com.taotao.pojo.TbItem;
 import com.taotao.pojo.TbItemCat;
 import com.taotao.pojo.TbItemCatExample;
 import com.taotao.rest.dao.JedisClient;
+import com.taotao.rest.dao.impl.JedisClientCluster;
 import com.taotao.rest.pojo.CatNode;
 import com.taotao.rest.pojo.CatResult;
 import com.taotao.rest.service.ItemCatService;
@@ -37,6 +38,9 @@ public class ItemCatServiceImpl implements ItemCatService {
     @Autowired
     private JedisClient jedisClient;
 
+    @Autowired
+    private JedisClientCluster jedisClientCluster;
+
     @Override
     public CatResult getItemCatList() {
         CatResult catResult = new CatResult();
@@ -46,19 +50,21 @@ public class ItemCatServiceImpl implements ItemCatService {
         Log.info("startTime = " + startTime);
 
         List<TbItem> lists = new ArrayList<>();
-        try {
-            String itemList = jedisClient.get("itemList");
-            if (!StringUtils.isBlank(itemList)) {
-                lists = JsonUtils.jsonToList(itemList, TbItem.class);
-            } else {
-                lists = (List<TbItem>) getCatList(0);
+        lists = (List<TbItem>) getCatList(0);
+
+//        try {
+//            String itemList = jedisClient.hget("itemList","iteml");
+//            if (!StringUtils.isBlank(itemList)) {
+//                lists = JsonUtils.jsonToList(itemList, TbItem.class);
+//            } else {
+//                lists = (List<TbItem>) getCatList(0);
                 // 将商品类目列表记录进redis中
-                String strList = JsonUtils.objectToJson(lists);
-                jedisClient.set("itemList",strList);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+//                String strList = JsonUtils.objectToJson(lists);
+//                jedisClient.hset("itemList","iteml",strList);
+//            }
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
 
         long endTime=System.currentTimeMillis();
         Log.info("endTime = " + endTime);
@@ -77,9 +83,14 @@ public class ItemCatServiceImpl implements ItemCatService {
         List<TbItemCat> lists = new ArrayList<>();
         // 先尝试从redis中取出
         try {
+            // 单机版
             String itemList = jedisClient.hget(REDIS_ITEM_CAT_LIST_KEY, parentId+"");
+            // 集群版
+//            String itemList = jedisClientCluster.hget(REDIS_ITEM_CAT_LIST_KEY, parentId+"");
+
             if (!StringUtils.isBlank(itemList)) {
                 lists = JsonUtils.jsonToList(itemList, TbItemCat.class);
+                Log.info("redis redis 取出！ size = " + lists.size());
             } else {
                 // 若不存在于缓存中，则从数据库中取出
                 // 创建查询条件
@@ -92,7 +103,11 @@ public class ItemCatServiceImpl implements ItemCatService {
 
                 // 将商品类目列表记录进redis中
                 String strList = JsonUtils.objectToJson(lists);
+                // 单机版
                 jedisClient.hset(REDIS_ITEM_CAT_LIST_KEY, parentId+"",strList);
+                // 集群版
+//                jedisClientCluster.hset(REDIS_ITEM_CAT_LIST_KEY, parentId+"",strList);
+                Log.info("redis redis 存入！ size = " + lists.size());
             }
         } catch (Exception e) {
             e.printStackTrace();
