@@ -34,7 +34,7 @@
         <jsp-api.version>2.0</jsp-api.version>
         <joda-time.version>2.5</joda-time.version>
         <commons-lang3.version>3.3.2</commons-lang3.version>
-        <commons-io.version>2.7-SNAPSHOT</commons-io.version>
+        <commons-io.version>2.7</commons-io.version>
         <commons-net.version>3.3</commons-net.version>
         <jsch.version>0.1.54</jsch.version>
         <jzlib.version>1.0.7</jzlib.version>
